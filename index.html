@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>汕尾潮汐钓鱼助手</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b1929">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0b1929;--card:#132f4c;--border:#1e4976;
+  --pri:#5090d3;--accent:#66b2ff;
+  --hi:#ff8a65;--lo:#4fc3f7;
+  --exc:#66bb6a;--good:#ffd54f;--fair:#ff8a65;--poor:#ef5350;
+  --text:#e3f2fd;--muted:#78909c;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;
+  min-height:100vh;-webkit-tap-highlight-color:transparent;user-select:none;overflow-x:hidden}
+#app{max-width:500px;margin:0 auto;padding:12px 12px 32px}
+header{text-align:center;padding:14px 0 4px}
+header h1{font-size:20px;font-weight:700}
+header .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.date-nav{display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0}
+.date-nav button{background:var(--card);border:1px solid var(--border);color:var(--accent);
+  width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.date-nav button:active{background:var(--border)}
+.date-nav .dt{font-size:15px;font-weight:600;min-width:180px;text-align:center}
+.date-nav .today{font-size:11px;background:var(--pri);color:#fff;border:none;
+  padding:3px 10px;border-radius:10px;cursor:pointer;width:auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
+.card-t{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:10px}
+canvas{display:block;border-radius:8px;touch-action:none}
+#tideChart{width:100%;height:180px}
+#fishBar{width:100%;height:64px;margin-top:6px}
+.tooltip{position:absolute;background:rgba(19,47,76,0.96);border:1px solid var(--accent);
+  border-radius:8px;padding:6px 10px;font-size:12px;pointer-events:none;display:none;z-index:10;white-space:nowrap}
+/* Score circle */
+.score-wrap{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+.score-circle{width:72px;height:72px;border-radius:50%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.score-circle .num{font-size:26px;line-height:1}
+.score-circle .lbl{font-size:11px;margin-top:2px}
+.score-detail{flex:1;font-size:13px;line-height:1.8;color:var(--muted)}
+.score-detail b{color:var(--text)}
+/* Tide list */
+.tlist{display:flex;flex-wrap:wrap;gap:8px}
+.titem{flex:1;min-width:45%;display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;background:rgba(255,255,255,0.04)}
+.tico{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.tico.h{background:rgba(255,138,101,0.18);color:var(--hi)}
+.tico.l{background:rgba(79,195,247,0.18);color:var(--lo)}
+.tinfo .tt{font-size:15px;font-weight:600}
+.tinfo .th{font-size:12px;color:var(--muted)}
+/* Fish windows */
+.fw{border-radius:12px;padding:12px;margin-bottom:10px}
+.fw.excellent{background:rgba(102,187,106,0.1);border-left:3px solid var(--exc)}
+.fw.good{background:rgba(255,213,79,0.08);border-left:3px solid var(--good)}
+.fw.fair{background:rgba(255,138,101,0.06);border-left:3px solid var(--fair)}
+.fw.poor{background:rgba(239,83,80,0.06);border-left:3px solid var(--poor)}
+.fw-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.fw-stars{font-size:13px}
+.fw-level{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px}
+.fw-level.excellent{background:rgba(102,187,106,0.2);color:var(--exc)}
+.fw-level.good{background:rgba(255,213,79,0.2);color:var(--good)}
+.fw-level.fair{background:rgba(255,138,101,0.2);color:var(--fair)}
+.fw-time{font-size:17px;font-weight:700;margin-bottom:4px}
+.fw-phase{font-size:12px;color:var(--accent);margin-bottom:6px}
+.fw-reason{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:6px}
+.fw-tags{display:flex;flex-wrap:wrap;gap:6px}
+.fw-tag{font-size:11px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,0.06);color:var(--text)}
+/* Moon */
+.moon{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.04)}
+.moon-i{font-size:28px}
+.moon-t{font-size:13px;line-height:1.6}
+/* Season */
+.season{margin-top:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.04);font-size:12px;line-height:1.8;color:var(--muted)}
+.season b{color:var(--text)}
+/* Forecast */
+.frow{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.fday{flex:0 0 calc((100% - 24px)/4);min-width:88px;background:rgba(255,255,255,0.04);
+  border-radius:10px;padding:8px 6px;text-align:center;cursor:pointer}
+.fday.act{border:1px solid var(--accent)}
+.fday .fd{font-size:11px;color:var(--muted)}
+.fday .fw2{font-size:13px;font-weight:600;margin:2px 0}
+.fday canvas{height:36px;margin:4px 0}
+.fday .ft{font-size:10px;color:var(--muted);line-height:1.4}
+.fday .fs{font-size:12px;margin-top:3px;font-weight:600}
+.disc{text-align:center;font-size:11px;color:var(--muted);padding:12px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>汕尾潮汐钓鱼助手</h1>
+    <div class="sub">汕尾城区 · 22.78°N, 115.36°E</div>
+  </header>
+  <div class="date-nav">
+    <button id="prev">&#9664;</button>
+    <div class="dt" id="dtText"></div>
+    <button id="next">&#9654;</button>
+    <button class="today" id="todayBtn">今天</button>
+  </div>
+  <div class="card" style="position:relative">
+    <div class="card-t">潮汐曲线</div>
+    <canvas id="tideChart"></canvas>
+    <div class="tooltip" id="tip"></div>
+  </div>
+  <div class="card">
+    <div class="card-t">潮汐时刻</div>
+    <div class="tlist" id="tideList"></div>
+  </div>
+  <div class="card">
+    <div class="card-t">今日钓鱼指数</div>
+    <div class="score-wrap" id="scoreWrap"></div>
+    <canvas id="fishBar"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-t">钓鱼时段详解</div>
+    <div id="fishWindows"></div>
+  </div>
+  <div class="card">
+    <div class="card-t">月相与鱼情</div>
+    <div class="moon" id="moonInfo"></div>
+    <div class="season" id="seasonInfo"></div>
+  </div>
+  <div class="card">
+    <div class="card-t">7日预览</div>
+    <div class="frow" id="forecast"></div>
+  </div>
+  <div class="disc">数据基于天文潮汐谐波模型，仅供参考<br>实际潮位受气象风力等影响，出行请注意安全</div>
+</div>
+<script>
+// ===== CONSTANTS =====
+const Z0=1.30, DEG=Math.PI/180, SPD=288;
+const J2000=Date.UTC(2000,0,1,12,0,0);
+const WK=['日','一','二','三','四','五','六'];
+const CON=[
+  {n:'M2',a:.48,p:135,s:28.9841042},{n:'S2',a:.17,p:165,s:30},
+  {n:'N2',a:.10,p:115,s:28.4397295},{n:'K1',a:.30,p:210,s:15.0410686},
+  {n:'O1',a:.22,p:190,s:13.9430356},{n:'P1',a:.10,p:210,s:14.9589314},
+  {n:'K2',a:.05,p:165,s:30.0821373},{n:'Q1',a:.04,p:170,s:13.3986609},
+  {n:'M4',a:.03,p:270,s:57.9682084}
+];
+const V0={M2:124.30,S2:0,N2:349.34,K1:162.62,O1:85.98,P1:321.68,K2:325.23,Q1:311.02,M4:248.60};
+const SUN=[[6.75,17.75],[6.58,18.08],[6.25,18.25],[5.92,18.50],[5.67,18.75],[5.58,19],[5.67,19],[5.83,18.75],[5.92,18.33],[6.08,17.92],[6.33,17.58],[6.67,17.58]];
+const SEASON_FISH=[
+  {months:[3,4,5],name:'春季',fish:'黑鲷、黄鳍鲷、鲈鱼、沙尖鱼',tip:'春季鱼群产卵前觅食活跃，涨潮期近岸礁石区上鱼率高。建议用虾饵或小鱼饵，钓底为主。'},
+  {months:[6,7,8],name:'夏季',fish:'石斑、鲈鱼、章红、马鲛',tip:'夏季高温，早晚时段鱼口最好。大潮期间深水区大鱼活跃，建议天亮前或日落后出钓。'},
+  {months:[9,10,11],name:'秋季',fish:'黑鲷、真鲷、石斑、鱿鱼、马鲛',tip:'秋季是汕尾最佳钓鱼季节，鱼种丰富。各种钓法都有好收获，特别是矶钓和路亚效果好。'},
+  {months:[12,1,2],name:'冬季',fish:'黑鲷、黄鳍鲷、鲻鱼',tip:'冬季水温低，鱼活性差，宜选中午前后水温较高时段。深水区、避风港湾是好钓位。用小钩细线，耐心守钓。'}
+];
+const NM_REF=Date.UTC(2000,0,6,18,14,0), SYNODIC=29.53059*864e5;
+
+// ===== TIDE ENGINE =====
+function mod360(d){return((d%360)+360)%360}
+function nodal(date){
+  const T=(date.getTime()-J2000)/(36e5*24*36525);
+  const N=mod360(125.0445-1934.1363*T)*DEG;
+  const c=Math.cos(N),s=Math.sin(N);
+  return{M2:{f:1-.037*c,u:-2.1*s},S2:{f:1,u:0},N2:{f:1-.037*c,u:-2.1*s},
+    K1:{f:1.006+.115*c,u:-8.9*s},O1:{f:1.009+.187*c,u:10.8*s},P1:{f:1,u:0},
+    K2:{f:1.024+.286*c,u:-17.7*s},Q1:{f:1.009+.187*c,u:10.8*s},
+    M4:{f:Math.pow(1-.037*c,2),u:2*(-2.1*s)}};
+}
+function tideH(date){
+  const t=(date.getTime()-J2000)/36e5,nd=nodal(date);
+  let h=Z0;
+  for(const c of CON){const nn=nd[c.n];h+=nn.f*c.a*Math.cos((c.s*t+(V0[c.n]||0)+nn.u-c.p)*DEG);}
+  return h;
+}
+function dayH(date){
+  const y=date.getFullYear(),m=date.getMonth(),d=date.getDate();
+  const s=new Date(y,m,d),pts=[];
+  for(let i=0;i<=SPD;i++){const t=new Date(s.getTime()+i*(864e5/SPD));pts.push({time:t,h:tideH(t)});}
+  return pts;
+}
+function findExt(pts){
+  const ex=[];
+  for(let i=1;i<pts.length-1;i++){
+    const p=pts[i-1].h,c=pts[i].h,n=pts[i+1].h;
+    if(c>p&&c>n)ex.push({type:'high',time:pts[i].time,h:c});
+    else if(c<p&&c<n)ex.push({type:'low',time:pts[i].time,h:c});
+  }
+  return ex;
+}
+
+// ===== TIDE PHASE (涨几分/退几分) =====
+function getTidePhases(pts,extremes){
+  // Build ordered list: include extremes from prev/next day for boundary
+  const allEx=[...extremes];
+  // For each point, determine phase
+  const phases=pts.map((pt,i)=>{
+    let prevEx=null,nextEx=null;
+    for(const e of allEx){
+      if(e.time<=pt.time)prevEx=e;
+      if(!nextEx&&e.time>pt.time)nextEx=e;
+    }
+    if(!prevEx||!nextEx)return{fraction:5,rising:true,label:'潮汐活跃'};
+    const total=nextEx.time-prevEx.time;
+    const elapsed=pt.time-prevEx.time;
+    const ratio=Math.min(1,Math.max(0,elapsed/total));
+    const fraction=Math.round(ratio*10); // 0-10 分
+    const rising=prevEx.type==='low'; // low→high = rising
+    return{fraction,rising,
+      label:rising?`涨${fraction}分`:`退${fraction}分`,
+      prevEx,nextEx};
+  });
+  return phases;
+}
+
+// ===== MOON PHASE =====
+function moonPhase(date){
+  const elapsed=date.getTime()-NM_REF;
+  const phase=((elapsed%SYNODIC)+SYNODIC)%SYNODIC/SYNODIC;
+  const age=phase*29.53;
+  let name,icon;
+  if(age<1.85){name='新月';icon='\u{1F311}';}
+  else if(age<5.53){name='蛾眉月';icon='\u{1F312}';}
+  else if(age<9.22){name='上弦月';icon='\u{1F313}';}
+  else if(age<12.91){name='盈凸月';icon='\u{1F314}';}
+  else if(age<16.61){name='满月';icon='\u{1F315}';}
+  else if(age<20.30){name='亏凸月';icon='\u{1F316}';}
+  else if(age<23.99){name='下弦月';icon='\u{1F317}';}
+  else if(age<27.68){name='残月';icon='\u{1F318}';}
+  else{name='新月';icon='\u{1F311}';}
+  const distNew=Math.min(age,29.53-age),distFull=Math.abs(age-14.765);
+  const distQ=Math.min(Math.abs(age-7.38),Math.abs(age-22.15));
+  let tideType,tideScore,tideTip;
+  if(distNew<=3||distFull<=3){
+    tideType='大潮期';tideScore=Math.min(100,88+(3-Math.min(distNew,distFull))*4);
+    tideTip='大潮期间潮差大、水流强，饵料随潮水大量涌入，大鱼活性高。是钓大物的好时机，但水流太急时需注意调整铅坠重量。';
+  }else if(distQ<=2.5){
+    tideType='小潮期';tideScore=38;
+    tideTip='小潮期间潮差小、水流缓，适合矶钓和轻装钓法。虽然大鱼活性低，但小型鱼反而更容易上钩，适合休闲钓。';
+  }else{
+    tideType='中潮期';tideScore=63;
+    tideTip='中潮期潮差适中，水流不急不缓，综合钓鱼条件较好。各种钓法都可以尝试，是比较稳妥的出钓时间。';
+  }
+  // 农历近似
+  const lunarDay=Math.round(age)+1;
+  const lunarStr=lunarDay>30?'初一':(lunarDay<=10?(['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十'])[lunarDay-1]:
+    lunarDay<=20?(['十一','十二','十三','十四','十五','十六','十七','十八','十九','二十'])[lunarDay-11]:
+    lunarDay<=30?(['廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'])[lunarDay-21]:'初一');
+  return{phase,age,name,icon,tideType,tideScore,tideTip,lunarStr};
+}
+
+// ===== FISHING SCORE ENGINE =====
+function computeFishScores(pts,extremes,date){
+  const month=date.getMonth();
+  const[sunrise,sunset]=SUN[month];
+  const moon=moonPhase(date);
+  const phases=getTidePhases(pts,extremes);
+  // Flow rate
+  const flows=[];
+  for(let i=0;i<pts.length-1;i++){
+    const dt=(pts[i+1].time-pts[i].time)/36e5;
+    flows.push(Math.abs(pts[i+1].h-pts[i].h)/dt);
+  }
+  flows.push(flows[flows.length-1]||0);
+  const maxFlow=Math.max(...flows)||.01;
+
+  return pts.map((pt,i)=>{
+    const hour=pt.time.getHours()+pt.time.getMinutes()/60;
+    const ph=phases[i];
+    // 1) Tide flow score (0-100)
+    const flowScore=(flows[i]/maxFlow)*100;
+    // 2) Tide phase score - 涨五到涨八分最佳，退二到退五分较好
+    let phaseScore=40;
+    if(ph.rising){
+      if(ph.fraction>=5&&ph.fraction<=8)phaseScore=100;
+      else if(ph.fraction>=3&&ph.fraction<=4)phaseScore=75;
+      else if(ph.fraction===9)phaseScore=55;
+      else if(ph.fraction<=2)phaseScore=35;
+      else phaseScore=30; // 涨满
+    }else{
+      if(ph.fraction>=2&&ph.fraction<=5)phaseScore=85;
+      else if(ph.fraction>=6&&ph.fraction<=7)phaseScore=60;
+      else if(ph.fraction===1)phaseScore=50;
+      else if(ph.fraction>=8)phaseScore=30;
+      else phaseScore=25; // 退满/干潮
+    }
+    // 3) Time of day
+    let timeScore=40;
+    if(hour>=sunrise-.5&&hour<=sunrise+1.5)timeScore=100; // dawn
+    else if(hour>=sunset-1&&hour<=sunset+.5)timeScore=95; // dusk
+    else if(hour>=sunrise+1.5&&hour<=11)timeScore=70;
+    else if(hour>=14&&hour<=sunset-1)timeScore=60;
+    else if(hour>=11&&hour<14)timeScore=30; // noon heat
+    else if(hour>=20||hour<sunrise-.5)timeScore=50; // night
+    // 4) Moon phase score
+    const moonScore=moon.tideScore;
+    // Weighted total
+    const total=flowScore*.25+phaseScore*.35+timeScore*.25+moonScore*.15;
+    return{time:pt.time,hour,h:pt.h,score:total,flowScore,phaseScore,timeScore,moonScore,phase:ph};
+  });
+}
+
+function buildFishWindows(scores,extremes){
+  // Find contiguous windows where score > threshold
+  const wins=[];
+  let start=null,sum=0,cnt=0;
+  for(let i=0;i<scores.length;i++){
+    if(scores[i].score>=42){
+      if(start===null)start=i;
+      sum+=scores[i].score;cnt++;
+    }else{
+      if(start!==null&&cnt>=9){ // >=45min
+        wins.push(makeWindow(scores,start,i-1,sum/cnt,extremes));
+      }
+      start=null;sum=0;cnt=0;
+    }
+  }
+  if(start!==null&&cnt>=9)wins.push(makeWindow(scores,start,scores.length-1,sum/cnt,extremes));
+  wins.sort((a,b)=>b.avg-a.avg);
+  return wins;
+}
+
+function makeWindow(scores,si,ei,avg,extremes){
+  const from=scores[si].hour,to=scores[ei].hour;
+  const mid=scores[Math.floor((si+ei)/2)];
+  const ph=mid.phase;
+  // Level
+  let level,label;
+  if(avg>=70){level='excellent';label='极佳';}
+  else if(avg>=55){level='good';label='较好';}
+  else if(avg>=42){level='fair';label='一般';}
+  else{level='poor';label='不佳';}
+  // Stars
+  const stars=level==='excellent'?'\u2605\u2605\u2605':level==='good'?'\u2605\u2605\u2606':'\u2605\u2606\u2606';
+  // Phase range
+  const startPh=scores[si].phase,endPh=scores[ei].phase;
+  let phaseStr='';
+  if(startPh.rising&&endPh.rising)phaseStr=`涨${startPh.fraction}分 \u2192 涨${endPh.fraction}分`;
+  else if(!startPh.rising&&!endPh.rising)phaseStr=`退${startPh.fraction}分 \u2192 退${endPh.fraction}分`;
+  else if(startPh.rising)phaseStr=`涨${startPh.fraction}分 \u2192 退${endPh.fraction}分（经过满潮）`;
+  else phaseStr=`退${startPh.fraction}分 \u2192 涨${endPh.fraction}分（经过干潮）`;
+  // Reason & tips
+  let reason='',tags=[];
+  if(avg>=70){
+    if(mid.phase.rising&&mid.phase.fraction>=4){
+      reason='涨潮中后期，大量海水涌入带来丰富饵料，鱼群趋岸觅食活跃，咬钩频率最高。水流方向明确，鱼群聚集在潮流通道和礁石背流处。';
+      tags=['矶钓','浮游矶钓','礁石区','防波堤'];
+    }else if(!mid.phase.rising&&mid.phase.fraction<=5){
+      reason='退潮初中期，鱼群沿退潮通道回撤，在深水凹槽和礁石缝聚集。此时找准退潮水道守钓，往往有惊喜。';
+      tags=['沉底钓','远投','退潮水道','深水区'];
+    }else{
+      reason='潮水流动活跃，水中溶氧充足，鱼的活性和觅食欲望都很高。';
+      tags=['多种钓法皆可','灵活选位'];
+    }
+  }else if(avg>=55){
+    reason='潮水有一定流动，鱼群有觅食行为但不如高峰期活跃。选好钓位耐心守候，仍有不错收获。';
+    tags=['守钓为主','耐心等口'];
+  }else{
+    reason='潮水接近平潮或正值高温时段，鱼的活性较低。可利用此时段整理装备、更换钓位或休息。';
+    tags=['休息调整','换饵试钓'];
+  }
+  // Time of day bonus note
+  const midHour=(from+to)/2;
+  if(midHour>=5&&midHour<=7.5)tags.unshift('黄金晨光');
+  else if(midHour>=17&&midHour<=19.5)tags.unshift('黄金黄昏');
+  return{from,to,avg,level,label,stars,phaseStr,reason,tags};
+}
+
+function dayOverallScore(scores){
+  if(!scores.length)return 0;
+  // Use top 30% of scores as overall indicator
+  const sorted=[...scores].sort((a,b)=>b.score-a.score);
+  const top=sorted.slice(0,Math.max(1,Math.floor(sorted.length*.3)));
+  return Math.round(top.reduce((s,v)=>s+v.score,0)/top.length);
+}
+
+// ===== CHART =====
+function drawTide(canvas,pts,extremes,date){
+  const dpr=devicePixelRatio||1,rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height;
+  const P={t:14,r:8,b:22,l:34};
+  const pW=W-P.l-P.r,pH=H-P.t-P.b;
+  const hv=pts.map(p=>p.h);
+  const hMin=Math.floor(Math.min(...hv)*10)/10-.1;
+  const hMax=Math.ceil(Math.max(...hv)*10)/10+.1;
+  const toX=hr=>P.l+(hr/24)*pW;
+  const toY=h=>P.t+pH-((h-hMin)/(hMax-hMin))*pH;
+  ctx.fillStyle='#0a1423';ctx.fillRect(0,0,W,H);
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;
+  for(let hr=0;hr<=24;hr+=3){const x=toX(hr);ctx.beginPath();ctx.moveTo(x,P.t);ctx.lineTo(x,P.t+pH);ctx.stroke();}
+  for(let h=Math.ceil(hMin*2)/2;h<=hMax;h+=.5){const y=toY(h);ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+pW,y);ctx.stroke();}
+  // Curve
+  ctx.beginPath();
+  for(let i=0;i<pts.length;i++){
+    const hr=(pts[i].time-pts[0].time)/36e5;
+    const x=toX(hr),y=toY(pts[i].h);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#66b2ff';ctx.lineWidth=2.5;ctx.stroke();
+  const lastHr=(pts[pts.length-1].time-pts[0].time)/36e5;
+  ctx.lineTo(toX(lastHr),toY(hMin));ctx.lineTo(toX(0),toY(hMin));ctx.closePath();
+  const grd=ctx.createLinearGradient(0,P.t,0,P.t+pH);
+  grd.addColorStop(0,'rgba(102,178,255,0.25)');grd.addColorStop(1,'rgba(102,178,255,0.02)');
+  ctx.fillStyle=grd;ctx.fill();
+  // Now line
+  const now=new Date(),today=new Date(date.getFullYear(),date.getMonth(),date.getDate());
+  if(now>=today&&now<new Date(today.getTime()+864e5)){
+    const nh=(now-today)/36e5,x=toX(nh);
+    ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(x,P.t);ctx.lineTo(x,P.t+pH);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,toY(tideH(now)),4,0,Math.PI*2);ctx.fill();
+  }
+  // Extremes
+  for(const e of extremes){
+    const hr=(e.time-pts[0].time)/36e5,x=toX(hr),y=toY(e.h);
+    ctx.fillStyle=e.type==='high'?'#ff8a65':'#4fc3f7';
+    ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=e.type==='high'?'#ff8a65':'#4fc3f7';
+    ctx.font='bold 9px system-ui';ctx.textAlign='center';
+    ctx.fillText(fmt(e.time),x,e.type==='high'?y-10:y+14);
+  }
+  // Axis
+  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='10px system-ui';ctx.textAlign='center';
+  for(let hr=0;hr<=24;hr+=3)ctx.fillText(hr===24?'0':String(hr).padStart(2,'0'),toX(hr),H-3);
+  ctx.textAlign='right';
+  for(let h=Math.ceil(hMin*2)/2;h<=hMax;h+=.5)ctx.fillText(h.toFixed(1),P.l-4,toY(h)+3);
+  return{toX,toY,pW,pH,hMin,hMax,pts};
+}
+
+function drawFishBar(canvas,scores){
+  const dpr=devicePixelRatio||1,rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height;
+  const P={l:34,r:8,t:4,b:18};
+  const pW=W-P.l-P.r,barH=H-P.t-P.b;
+  // Background
+  ctx.fillStyle='#0a1423';ctx.fillRect(0,0,W,H);
+  // Draw hourly blocks
+  const hourScores=Array(24).fill(0);
+  const hourCounts=Array(24).fill(0);
+  for(const s of scores){const hi=Math.floor(s.hour);if(hi<24){hourScores[hi]+=s.score;hourCounts[hi]++;}}
+  for(let i=0;i<24;i++)if(hourCounts[i])hourScores[i]/=hourCounts[i];
+  const bw=pW/24;
+  for(let i=0;i<24;i++){
+    const s=hourScores[i];
+    const x=P.l+i*bw;
+    let color;
+    if(s>=70)color=`rgba(102,187,106,${0.4+s/200})`;
+    else if(s>=55)color=`rgba(255,213,79,${0.3+s/250})`;
+    else if(s>=42)color=`rgba(255,138,101,${0.2+s/300})`;
+    else color=`rgba(239,83,80,${0.15+s/400})`;
+    const bH=(s/100)*barH;
+    ctx.fillStyle=color;
+    ctx.fillRect(x+1,P.t+barH-bH,bw-2,bH);
+  }
+  // Now marker
+  const now=new Date(),curDate=scores[0]?.time;
+  if(curDate){
+    const today=new Date(curDate.getFullYear(),curDate.getMonth(),curDate.getDate());
+    if(now>=today&&now<new Date(today.getTime()+864e5)){
+      const nh=(now-today)/36e5,x=P.l+nh/24*pW;
+      ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(x,P.t);ctx.lineTo(x,P.t+barH);ctx.stroke();
+    }
+  }
+  // Labels
+  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='9px system-ui';ctx.textAlign='center';
+  for(let hr=0;hr<=24;hr+=3)ctx.fillText(hr===24?'0':String(hr).padStart(2,'0'),P.l+hr/24*pW,H-3);
+  // Legend
+  ctx.font='9px system-ui';ctx.textAlign='left';
+  const leg=[['极佳','rgba(102,187,106,0.8)'],['较好','rgba(255,213,79,0.7)'],['一般','rgba(255,138,101,0.6)'],['不佳','rgba(239,83,80,0.5)']];
+  let lx=P.l;
+  for(const[t,c] of leg){ctx.fillStyle=c;ctx.fillRect(lx,P.t+barH+6,12,6);ctx.fillStyle='rgba(255,255,255,0.4)';ctx.fillText(t,lx+14,P.t+barH+12);lx+=48;}
+}
+
+// ===== UI =====
+let curDate=new Date(),chartSt=null;
+function fmt(d){return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
+function fmtHr(h){const hh=Math.floor(h),mm=Math.round((h-hh)*60);return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
+
+function render(){
+  const d=curDate,now=new Date(),isToday=d.toDateString()===now.toDateString();
+  document.getElementById('dtText').textContent=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${WK[d.getDay()]}`;
+  document.getElementById('todayBtn').style.display=isToday?'none':'';
+  const pts=dayH(d),ex=findExt(pts);
+  const scores=computeFishScores(pts,ex,d);
+  const wins=buildFishWindows(scores,ex);
+  const overall=dayOverallScore(scores);
+  const moon=moonPhase(d);
+  // Tide chart
+  chartSt=drawTide(document.getElementById('tideChart'),pts,ex,d);
+  // Tide list
+  document.getElementById('tideList').innerHTML=ex.length?ex.map(e=>{
+    const c=e.type==='high'?'h':'l',arr=e.type==='high'?'\u2191':'\u2193',lb=e.type==='high'?'高潮':'低潮';
+    return`<div class="titem"><div class="tico ${c}">${arr}</div><div class="tinfo"><div class="tt">${fmt(e.time)}</div><div class="th">${e.h.toFixed(2)}m · ${lb}</div></div></div>`;
+  }).join(''):'<div style="color:var(--muted);text-align:center;padding:12px">暂无数据</div>';
+  // Overall score
+  let sColor,sLabel,sSummary;
+  if(overall>=70){sColor='var(--exc)';sLabel='极佳';sSummary='今天潮汐和时段条件都很好，非常适合出钓！';}
+  else if(overall>=55){sColor='var(--good)';sLabel='较好';sSummary='今天钓鱼条件不错，抓住最佳时段出钓会有好收获。';}
+  else if(overall>=42){sColor='var(--fair)';sLabel='一般';sSummary='今天条件一般，选对时段仍有机会。建议参考下方时段详解。';}
+  else{sColor='var(--poor)';sLabel='不佳';sSummary='今天整体条件不太理想，如非必要建议改天。';}
+  document.getElementById('scoreWrap').innerHTML=`
+    <div class="score-circle" style="border:3px solid ${sColor};color:${sColor}">
+      <div class="num">${overall}</div><div class="lbl">${sLabel}</div>
+    </div>
+    <div class="score-detail">
+      ${sSummary}<br>
+      <b>月相：</b>${moon.name}（${moon.tideType}）<br>
+      <b>农历：</b>约${moon.lunarStr}
+    </div>`;
+  // Fish bar chart
+  drawFishBar(document.getElementById('fishBar'),scores);
+  // Fish windows detail
+  const fwEl=document.getElementById('fishWindows');
+  if(!wins.length){
+    fwEl.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px">今日无明显适钓时段</div>';
+  }else{
+    fwEl.innerHTML=wins.slice(0,6).map(w=>`
+      <div class="fw ${w.level}">
+        <div class="fw-head">
+          <span class="fw-stars" style="color:${w.level==='excellent'?'var(--exc)':w.level==='good'?'var(--good)':'var(--fair)'}">${w.stars}</span>
+          <span class="fw-level ${w.level}">${w.label}</span>
+        </div>
+        <div class="fw-time">${fmtHr(w.from)} - ${fmtHr(w.to)}</div>
+        <div class="fw-phase">${w.phaseStr}</div>
+        <div class="fw-reason">${w.reason}</div>
+        <div class="fw-tags">${w.tags.map(t=>`<span class="fw-tag">${t}</span>`).join('')}</div>
+      </div>`).join('');
+  }
+  // Moon & season
+  document.getElementById('moonInfo').innerHTML=`
+    <div class="moon-i">${moon.icon}</div>
+    <div class="moon-t">
+      <b>${moon.name}</b> · 月龄${moon.age.toFixed(1)}天 · 农历约${moon.lunarStr} · <b style="color:var(--accent)">${moon.tideType}</b><br>
+      <span style="color:var(--muted);font-size:12px">${moon.tideTip}</span>
+    </div>`;
+  const m=d.getMonth()+1;
+  const si=SEASON_FISH.find(s=>s.months.includes(m))||SEASON_FISH[0];
+  document.getElementById('seasonInfo').innerHTML=`
+    <b>${si.name}鱼情（${si.months.map(v=>v+'月').join('、')}）</b><br>
+    常见鱼种：<b>${si.fish}</b><br>${si.tip}`;
+  // 7-day forecast
+  renderFC(d);
+}
+
+function renderFC(base){
+  const el=document.getElementById('forecast');el.innerHTML='';
+  for(let off=0;off<7;off++){
+    const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+off);
+    const isAct=off===0;
+    const pts=dayH(d),ex=findExt(pts);
+    const sc=computeFishScores(pts,ex,d);
+    const ov=dayOverallScore(sc);
+    const col=ov>=70?'var(--exc)':ov>=55?'var(--good)':ov>=42?'var(--fair)':'var(--poor)';
+    const lb=ov>=70?'极佳':ov>=55?'较好':ov>=42?'一般':'不佳';
+    const div=document.createElement('div');
+    div.className='fday'+(isAct?' act':'');
+    div.onclick=()=>{curDate=d;render();};
+    const ht=ex.filter(e=>e.type==='high').map(e=>fmt(e.time)).join('/');
+    const lt2=ex.filter(e=>e.type==='low').map(e=>fmt(e.time)).join('/');
+    div.innerHTML=`<div class="fd">${d.getMonth()+1}/${d.getDate()}</div>
+      <div class="fw2">${off===0?'今天':'周'+WK[d.getDay()]}</div>
+      <canvas style="width:100%;height:36px"></canvas>
+      <div class="ft">\u2191${ht||'-'}<br>\u2193${lt2||'-'}</div>
+      <div class="fs" style="color:${col}">${ov}分 ${lb}</div>`;
+    el.appendChild(div);
+    requestAnimationFrame(()=>{
+      const c=div.querySelector('canvas');
+      const dpr=devicePixelRatio||1,w=c.offsetWidth,h=c.offsetHeight;
+      c.width=w*dpr;c.height=h*dpr;
+      const cx=c.getContext('2d');cx.scale(dpr,dpr);
+      const ha=pts.map(p=>p.h),mn=Math.min(...ha),mx=Math.max(...ha),rg=mx-mn||1;
+      cx.beginPath();
+      for(let i=0;i<pts.length;i++){
+        const x=(i/(pts.length-1))*w,y=h-((ha[i]-mn)/rg)*(h-4)-2;
+        i===0?cx.moveTo(x,y):cx.lineTo(x,y);
+      }
+      cx.strokeStyle=isAct?'#66b2ff':'rgba(102,178,255,0.5)';cx.lineWidth=1.5;cx.stroke();
+      cx.lineTo(w,h);cx.lineTo(0,h);cx.closePath();
+      cx.fillStyle=isAct?'rgba(102,178,255,0.15)':'rgba(102,178,255,0.06)';cx.fill();
+    });
+  }
+}
+
+// Tooltip
+const tideCanvas=document.getElementById('tideChart'),tipEl=document.getElementById('tip');
+function showTip(cx,cy){
+  if(!chartSt)return;
+  const r=tideCanvas.getBoundingClientRect(),x=cx-r.left;
+  const hr=Math.max(0,Math.min(24,(x-34)/chartSt.pW*24));
+  const idx=Math.min(Math.round(hr/24*SPD),chartSt.pts.length-1);
+  const pt=chartSt.pts[idx];
+  tipEl.style.display='block';
+  tipEl.textContent=`${fmt(pt.time)}  ${pt.h.toFixed(2)}m`;
+  tipEl.style.left=Math.min(x+10,r.width-100)+'px';
+  tipEl.style.top=(cy-r.top-30)+'px';
+}
+tideCanvas.addEventListener('touchstart',e=>{e.preventDefault();showTip(e.touches[0].clientX,e.touches[0].clientY);});
+tideCanvas.addEventListener('touchmove',e=>{e.preventDefault();showTip(e.touches[0].clientX,e.touches[0].clientY);});
+tideCanvas.addEventListener('touchend',()=>tipEl.style.display='none');
+tideCanvas.addEventListener('mousemove',e=>showTip(e.clientX,e.clientY));
+tideCanvas.addEventListener('mouseleave',()=>tipEl.style.display='none');
+
+// Nav
+document.getElementById('prev').onclick=()=>{curDate=new Date(curDate.getFullYear(),curDate.getMonth(),curDate.getDate()-1);render();};
+document.getElementById('next').onclick=()=>{curDate=new Date(curDate.getFullYear(),curDate.getMonth(),curDate.getDate()+1);render();};
+document.getElementById('todayBtn').onclick=()=>{curDate=new Date();render();};
+let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,200);});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "汕尾潮汐钓鱼助手",
+  "short_name": "潮汐钓鱼",
+  "description": "汕尾城区潮汐预报与最佳钓鱼时段推荐",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1929",
+  "theme_color": "#0b1929",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230b1929'/%3E%3Cpath d='M60 300 Q130 240 200 300 Q270 360 340 300 Q410 240 460 300' stroke='%2366b2ff' stroke-width='18' fill='none' stroke-linecap='round'/%3E%3Cpath d='M60 340 Q130 280 200 340 Q270 400 340 340 Q410 280 460 340' stroke='%234fc3f7' stroke-width='14' fill='none' opacity='0.5' stroke-linecap='round'/%3E%3Ctext x='256' y='220' text-anchor='middle' font-size='120' font-weight='bold' fill='%23e3f2fd' font-family='sans-serif'%3E%E6%BD%AE%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
