@@ -1,5 +1,5 @@
-const CACHE_NAME = 'shanwei-tide-v1';
-const ASSETS = ['./', './index.html', './manifest.json'];
+const CACHE_NAME = 'shanwei-tide-v2';
+const ASSETS = ['./', './index.html', './manifest.json', './data/tides.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));

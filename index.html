@@ -129,7 +129,7 @@ canvas{display:block;border-radius:8px;touch-action:none}
     <div class="card-t">7日预览</div>
     <div class="frow" id="forecast"></div>
   </div>
-  <div class="disc">数据基于天文潮汐谐波模型，仅供参考<br>实际潮位受气象风力等影响，出行请注意安全</div>
+  <div class="disc" id="dataSource">数据加载中...</div>
 </div>
 <script>
 // ===== CONSTANTS =====
@@ -153,7 +153,79 @@ const SEASON_FISH=[
 ];
 const NM_REF=Date.UTC(2000,0,6,18,14,0), SYNODIC=29.53059*864e5;
 
-// ===== TIDE ENGINE =====
+// ===== REAL TIDE DATA =====
+let tideDB = null; // {tides: [{date,time,height,type},...]}
+
+async function loadTideData() {
+  // Try fetch from server
+  try {
+    const resp = await fetch('./data/tides.json');
+    if (resp.ok) {
+      tideDB = await resp.json();
+      localStorage.setItem('tideDB', JSON.stringify(tideDB));
+      return;
+    }
+  } catch(e) {}
+  // Fallback: localStorage cache
+  try {
+    const cached = localStorage.getItem('tideDB');
+    if (cached) { tideDB = JSON.parse(cached); return; }
+  } catch(e) {}
+}
+
+function getExtremes(date) {
+  // Get real extremes for a given date from tideDB
+  if (!tideDB || !tideDB.tides) return null;
+  const ds = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  const dayTides = tideDB.tides.filter(t => t.date === ds);
+  if (!dayTides.length) return null;
+  return dayTides.map(t => {
+    const [hh, mm] = t.time.split(':').map(Number);
+    return {
+      type: t.type,
+      time: new Date(date.getFullYear(), date.getMonth(), date.getDate(), hh, mm),
+      h: t.height
+    };
+  });
+}
+
+function getAllNearbyExtremes(date) {
+  // Get extremes for prev day, current day, next day (for interpolation at boundaries)
+  const prev = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  const all = [];
+  for (const d of [prev, date, next]) {
+    const ex = getExtremes(d);
+    if (ex) all.push(...ex);
+  }
+  all.sort((a, b) => a.time - b.time);
+  return all;
+}
+
+function cosineInterp(t, t1, h1, t2, h2) {
+  // Cosine interpolation between two extremes - very accurate for tides
+  const ratio = (t - t1) / (t2 - t1);
+  const clamped = Math.max(0, Math.min(1, ratio));
+  return (h1 + h2) / 2 + (h1 - h2) / 2 * Math.cos(Math.PI * clamped);
+}
+
+function tideHFromExtremes(date, allEx) {
+  // Interpolate tide height at given time using real extremes
+  const t = date.getTime();
+  if (!allEx || allEx.length < 2) return null;
+  // Find surrounding extremes
+  let before = null, after = null;
+  for (const ex of allEx) {
+    if (ex.time.getTime() <= t) before = ex;
+    if (ex.time.getTime() > t && !after) after = ex;
+  }
+  if (!before && after) return after.h;
+  if (before && !after) return before.h;
+  if (!before && !after) return null;
+  return cosineInterp(t, before.time.getTime(), before.h, after.time.getTime(), after.h);
+}
+
+// Harmonic fallback (when no real data)
 function mod360(d){return((d%360)+360)%360}
 function nodal(date){
   const T=(date.getTime()-J2000)/(36e5*24*36525);
@@ -164,19 +236,33 @@ function nodal(date){
     K2:{f:1.024+.286*c,u:-17.7*s},Q1:{f:1.009+.187*c,u:10.8*s},
     M4:{f:Math.pow(1-.037*c,2),u:2*(-2.1*s)}};
 }
-function tideH(date){
+function tideHFallback(date){
   const t=(date.getTime()-J2000)/36e5,nd=nodal(date);
   let h=Z0;
   for(const c of CON){const nn=nd[c.n];h+=nn.f*c.a*Math.cos((c.s*t+(V0[c.n]||0)+nn.u-c.p)*DEG);}
   return h;
 }
+
 function dayH(date){
   const y=date.getFullYear(),m=date.getMonth(),d=date.getDate();
   const s=new Date(y,m,d),pts=[];
-  for(let i=0;i<=SPD;i++){const t=new Date(s.getTime()+i*(864e5/SPD));pts.push({time:t,h:tideH(t)});}
+  const realEx = getAllNearbyExtremes(date);
+  const useReal = realEx && realEx.length >= 2;
+  for(let i=0;i<=SPD;i++){
+    const t=new Date(s.getTime()+i*(864e5/SPD));
+    const h = useReal ? tideHFromExtremes(t, realEx) : tideHFallback(t);
+    pts.push({time:t, h: h !== null ? h : tideHFallback(t)});
+  }
   return pts;
 }
 function findExt(pts){
+  // If we have real data, use it directly
+  const date = pts[0]?.time;
+  if (date) {
+    const real = getExtremes(date);
+    if (real && real.length) return real;
+  }
+  // Fallback: find from computed curve
   const ex=[];
   for(let i=1;i<pts.length-1;i++){
     const p=pts[i-1].h,c=pts[i].h,n=pts[i+1].h;
@@ -372,6 +458,7 @@ function dayOverallScore(scores){
 }
 
 // ===== CHART =====
+let useRealData=false;
 function drawTide(canvas,pts,extremes,date){
   const dpr=devicePixelRatio||1,rect=canvas.getBoundingClientRect();
   canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
@@ -408,7 +495,8 @@ function drawTide(canvas,pts,extremes,date){
     const nh=(now-today)/36e5,x=toX(nh);
     ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
     ctx.beginPath();ctx.moveTo(x,P.t);ctx.lineTo(x,P.t+pH);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,toY(tideH(now)),4,0,Math.PI*2);ctx.fill();
+    const nowH=useRealData?tideHFromExtremes(now,getAllNearbyExtremes(date)):tideHFallback(now);
+    if(nowH!==null){ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,toY(nowH),4,0,Math.PI*2);ctx.fill();}
   }
   // Extremes
   for(const e of extremes){
@@ -484,6 +572,8 @@ function render(){
   const d=curDate,now=new Date(),isToday=d.toDateString()===now.toDateString();
   document.getElementById('dtText').textContent=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 周${WK[d.getDay()]}`;
   document.getElementById('todayBtn').style.display=isToday?'none':'';
+  const realEx=getExtremes(d);
+  useRealData=!!(realEx&&realEx.length);
   const pts=dayH(d),ex=findExt(pts);
   const scores=computeFishScores(pts,ex,d);
   const wins=buildFishWindows(scores,ex);
@@ -544,6 +634,14 @@ function render(){
     常见鱼种：<b>${si.fish}</b><br>${si.tip}`;
   // 7-day forecast
   renderFC(d);
+  // Data source indicator
+  const srcEl=document.getElementById('dataSource');
+  if(useRealData){
+    const upd=tideDB?.updated||'';
+    srcEl.innerHTML=`数据来源：tide-forecast.com（${upd.slice(0,10)}更新）<br>实际潮位受气象风力等影响，出行请注意安全`;
+  }else{
+    srcEl.innerHTML=`当前日期无实测数据，使用天文谐波模型估算（可能有偏差）<br>实际潮位受气象风力等影响，出行请注意安全`;
+  }
 }
 
 function renderFC(base){
@@ -610,7 +708,10 @@ document.getElementById('next').onclick=()=>{curDate=new Date(curDate.getFullYea
 document.getElementById('todayBtn').onclick=()=>{curDate=new Date();render();};
 let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,200);});
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-render();
+(async()=>{
+  await loadTideData();
+  render();
+})();
 </script>
 </body>
 </html>
